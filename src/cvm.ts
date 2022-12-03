@@ -1,70 +1,74 @@
 import { JSDOM } from 'jsdom';
-import axios, { AxiosResponse } from 'axios';
+import axios from 'axios';
 import { print } from 'printaeu';
 import AdmZip from 'adm-zip';
-
-if (!process.env.CVM_FUNDS || !process.env.CVM_QUOTAS) {
-  throw new Error(`No dotenv file loaded`);
-}
+import fs from 'fs';
+import path from 'path';
+import zlib from 'zlib';
 
 /**
  * Access URLs
  */
 const url = {
-  funds: process.env.CVM_FUNDS,
-  dailyInfo: process.env.CVM_QUOTAS
+  funds: Buffer.from('aHR0cHM6Ly92ZXJpb3MuZWFzeW52ZXN0LmlvL3Zlcmlvcy9jdm0', 'base64').toString('utf-8'),
+  dailyInfo: Buffer.from('aHR0cDovL2RhZG9zLmN2bS5nb3YuYnIvZGFkb3MvRkkvRE9DL0lORl9ESUFSSU8vREFET1Mv', 'base64').toString('utf-8')
 }
 
 /**
  * Quota response
  */
-interface QuotaValue {
+export class FundInfo {
   /**
-   * The value's date
+   * Fund type. Usually it's `FACFIF`, `FAPI`, `FI`, or `FIF`
    */
-  date: string
+  type: string;
   /**
-   * The value of each quota
+   * Fund CNPJ formatted
+   * @example "00.017.024/0001-53"
    */
-  value: number
-}
+  cnpj: string;
+  /**
+   * The info date
+   * @example "2022-11-01"
+   */
+  date: string;
+  /**
+   * Asset total volume
+   */
+  totalVolume: string;
+  /**
+   * The value of each quota. Period (.) as decimal delimiter
+   */
+  quotaValue: string;
+  /**
+   * Net asset volume
+   */
+  netAssetVolume: string;
+  /**
+   * Daily fundraising
+   */
+  dailyFundraising: string;
+  /**
+   * Daily withdraw
+   */
+  dailyWithdraw: string;
+  /**
+   * Number of shareholders
+   */
+  numberOfShareholders: string;
 
-/**
- * Fund data type
- */
-interface FundData {
-  /**
-   * Administer
-   */
-  a: string
-  /**
-   * CNPJ
-   */
-  c: string
-  /**
-   * Group
-   */
-  g: string
-  /**
-   * i
-   */
-  i: 1,
-  /**
-   * Name
-   */
-  n: string
-  /**
-   * Equity
-   */
-  p: number
-  /**
-   * Shareholders
-   */
-  q: number
-  /**
-   * t
-   */
-  t: number
+  constructor(type?: string, cnpj?: string, date?: string, totalVolume?: string, quotaValue?: string, netAssetVolume?: string, dailyFundraising?: string, dailyWithdraw?: string, numberOfShareholders?: string) {
+    this.type = type || '';
+    this.cnpj = cnpj || '';
+    this.date = date || '';
+    this.totalVolume = totalVolume || '';
+    this.quotaValue = quotaValue || '';
+    this.netAssetVolume = netAssetVolume || '';
+    this.dailyFundraising = dailyFundraising || '';
+    this.dailyWithdraw = dailyWithdraw || '';
+    this.numberOfShareholders = numberOfShareholders || '';
+  }
+
 }
 
 /**
@@ -74,91 +78,108 @@ export class CVM {
 
   /**
    * Retrieve the last available quota for one or more CNPJs
-   * @param cnpjs one or more CNPJs to retrieve the last quota value balance
+   * @param cnpj one or more CNPJs to retrieve the last quota value balance
    * @returns a `Promise` that resolves to a `QuotaValue` or `QuotaValue[]`. Returns empty array
    * if no CNPJ match
    */
-  getQuota = async (cnpjs: string | string[]): Promise<QuotaValue[]> => {
+  async getDailyInfo(cnpj?: string | string[]): Promise<FundInfo[]> {
+    let assets: FundInfo[] = [];
+    let raw: string[] = await this.getRawDailyInfo();
 
-    let quotaValues: QuotaValue[] = [];
-    let doc: Document, rows;
+    if (cnpj) {
+      if (!Array.isArray(cnpj)) cnpj = [cnpj];
 
+      for (let i = 0; i < cnpj.length; i++) {
+  
+        let _cnpj: string = cnpj[i];
+        _cnpj = this.formatCNPJ(_cnpj);
+  
+        // Starting from the bottom to get the latest daily info
+        for (let i = raw.length - 1; i >= 0; i--) {
+          const row = raw[i];
+          if (row.includes(_cnpj)) {
+            assets.push(this.rawToInfo(row));
+            break;
+          }
+        }
+      }
+    } else {
+      raw.forEach(rawInfo => assets.push(this.rawToInfo(rawInfo)) );
+    }
+
+    return assets;
+
+  }
+
+  /**
+   * Get the raw info from the `.csv` file of the last daily info
+   * @returns a `Promise` that resolves into a list of `string`s with the
+   * content of each `.csv`'s row
+   */
+  private async getRawDailyInfo(): Promise<string[]> {
+
+    // Path to store temp files
+    let tempPath: string = path.join('/', 'tmp');
+    if (!fs.existsSync(tempPath)) tempPath = __dirname;
+
+    /**
+     * The path to download the file. It's removed at the end of this 
+     */
+    const downloadPath: string = path.join(tempPath, `cvm_${(new Date()).getMilliseconds()}.zip`);
+    let result: string[] = [];
+    
     try {
-      doc = (new JSDOM((await axios.get(url.dailyInfo)).data)).window.document;
+      
+      // Get data from the daily info (it comes in gzip format)
+      const res = (await axios.get(url.dailyInfo, { responseType: 'arraybuffer' }));
+      // The content comes gzip encoded
+      const data = await new Promise<string>((resolve, reject) => {
+        zlib.gunzip(res.data, function (_err, output) {
+          if (_err) reject(_err);
+          else resolve(output.toString());
+        })
+      });
+      // Construct the DOM
+      let doc: Document = (new JSDOM(data).window.document);
+      // Select the list of all daily info
       let querySelector: HTMLTableSectionElement | null = doc.querySelector("body > div.wrapper > pre");
       if (!querySelector) throw new Error(`The page is not as expected`);
-      rows = querySelector.children;
+      // The the rows of the list of all daily info
+      let rows: HTMLCollection = querySelector.children;
 
+      // Check if the list is valid
       if (rows.length) {
+        // Get the most recent daily info
         let lastItem = rows.item(rows.length - 1) as HTMLAnchorElement | null;;
         if (lastItem) {
+          // Get the URL of the most recent daily info
           let lastFileURL = lastItem.href;
-
           if (!lastFileURL) throw new Error(`[CV] No last file found`);
 
-          if (!Array.isArray(cnpjs)) cnpjs = [cnpjs];
+          // Download the zipped file with the .csv info
+          const downloadUrl: string = `${url.dailyInfo}/${lastFileURL}`;
 
-          // TODO Now the files are zipped
-          print.log(`[AS] Getting file '${`${url.dailyInfo}/${lastFileURL}`}'`)
-          var zip = new AdmZip(`${url.dailyInfo}/${lastFileURL}`);
-          var zipEntries = zip.getEntries(); // an array of ZipEntry records
+          const res = await axios.get(downloadUrl, { responseType: 'arraybuffer' })
+          .catch((err: any) => { throw new Error("Error getting the last CVM file: " + err.message) });
+          fs.writeFileSync(downloadPath, res.data);
 
-          zipEntries.forEach(function (zipEntry) {
-              console.log(zipEntry.toString()); // outputs zip entries information
-              if (zipEntry.entryName == "my_file.txt") {
-                  console.log(zipEntry.getData().toString("utf8"));
-              }
+          // Unzip the .csv
+          const csv: string = await new Promise<string>(resolve => {
+            var zip = new AdmZip(downloadPath);
+            var zipEntries = zip.getEntries();
+            zipEntries.forEach(zipEntry => {
+              resolve(zipEntry.getData().toString("utf8"));
+            });
           });
-          // await axios.get(`${url.dailyInfo}/${lastFileURL}`, {responseType: 'arraybuffer'})
-          // .then(res => {
-          //   if (res && res.data) {
-          //     try {
-                
-          //       let rows: string[] = res.data.split('\n');
-          //       for (let i = 0; i < cnpjs.length; i++) {
 
-          //         let cnpj = cnpjs[i];
+          result = csv.split('\n');
 
-          //         if (!cnpj.match(/\d+\.\d+\.\d+\/\d+-\d+/)) {
-          //           let match = cnpj.match(/\d+/g);
-          //           if (match) {
-          //             cnpj = match.join('')
-          //                         .split('')
-          //                         .splice(2, 0, '.')
-          //                         .splice(6, 0, '.')
-          //                         .splice(10, 0, '/')
-          //                         .splice(15, 0, '-')
-          //                         .join('');
-          //           }
-          //         }
-
-          //         for (let i = rows.length - 1; i >= 0; i--) {
-          //           const row = rows[i];
-          //           if (row.indexOf(cnpj) !== -1) {
-          //             let infos = row.split(';');
-          //             quotaValues.push({
-          //               date: infos[2],
-          //               value: parseFloat(infos[4])
-          //             });
-          //             break;
-          //           }
-          //         }
-          //       }
-          //     } catch (error: any) {
-          //       throw new Error("Error parsing the CVM file: " + error.message);
-          //     }
-          //   }
-          // })
-          // .catch((err: any) => {
-          //   throw new Error("Error getting the last CVM file: " + err.message);
-          // });
-
+        } else {
+          print.yellow(`[CV] Couldn't get the last daily info`);
         }
 
-      } else {
-        throw new Error("Got the CVM page, but couldn't get the files list");
-      }
-
+      } else throw new Error("Got the CVM page, but couldn't get the files list");
+      
     } catch (error) {
       print.red(`[CV] Error getting CNPJ's quotas`);
       if (error instanceof Error) {
@@ -166,12 +187,62 @@ export class CVM {
       } else {
         console.log(error);
       }
+
+      // Delete leftovers
+      if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
+
       throw error;
     }
 
-    if (!quotaValues.length) print.yellow(`[CV] No CNPJ quotas found`);
+    // Delete leftovers
+    if (fs.existsSync(downloadPath)) fs.unlinkSync(downloadPath);
 
-    return quotaValues;
+    return result;
+
   };
+
+  /**
+   * Convert a raw line from the `.csv` file into the `FundDailyInfo` object
+   * @param raw the raw line from the `.csv`
+   * @returns the parsed line as a `FundDailyInfo` object
+   */
+  private rawToInfo(raw: string): FundInfo {
+    let info: FundInfo = new FundInfo();
+    const data = raw.split(';');
+
+    info.type = data[0];
+    info.cnpj = data[1];
+    info.date = data[2];
+    info.totalVolume = data[3];
+    info.quotaValue = data[4];
+    info.netAssetVolume = data[5];
+    info.dailyFundraising = data[6];
+    info.dailyWithdraw = data[6];
+    info.numberOfShareholders = data[8];
+    return info;
+  }
+
+  /**
+   * Format a CNPJ, if not formatted
+   * @param cnpj the CNPJ
+   * @returns the parsed CNPJ
+   * @example this.formatCNPJ("00017024000153") // => "00.017.024/0001-53"
+   */
+  private formatCNPJ(cnpj: string): string {
+    let _cnpj: string = cnpj;
+    if (!_cnpj.match(/\d+\.\d+\.\d+\/\d+-\d+/)) {
+      let match = _cnpj.match(/\d+/g);
+      if (match) {
+        _cnpj = match.join('')
+                    .split('')
+                    .splice(2, 0, '.')
+                    .splice(6, 0, '.')
+                    .splice(10, 0, '/')
+                    .splice(15, 0, '-')
+                    .join('');
+      }
+    }
+    return _cnpj;
+  }
 
 }
