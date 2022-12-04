@@ -19,5 +19,10 @@ test('Get latest infos', async () => {
     expect<number>(parseFloat(quota.numberOfShareholders)).toBeGreaterThan(0);
     expect<number>(parseFloat(quota.totalVolume)).toBeGreaterThan(0);
     expect<number>(parseFloat(quota.netAssetVolume)).toBeGreaterThan(0);
+    try {
+      expect(quota.numberOfShareholders.match(/\r/g)).toBe(null);
+    } catch (error: any) {
+      throw new Error(`'numberOfShareholders' has a carriage return character`);
+    }
   });
 }, 15*1000);
