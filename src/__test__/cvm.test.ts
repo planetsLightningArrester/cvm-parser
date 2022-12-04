@@ -1,4 +1,5 @@
-import { CVM } from '../cvm';
+import { CVM } from '../cvm-parser';
+
 const cvm = new CVM();
 const cnpj: string[] = [
   '09.625.909/0001-00',
