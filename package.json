@@ -1,6 +1,6 @@
 {
   "name": "cvm-parser",
-  "version": "0.0.1",
+  "version": "0.0.2",
   "description": "",
   "main": "cvm-parser.js",
   "types": "cvm-parser.d.ts",
