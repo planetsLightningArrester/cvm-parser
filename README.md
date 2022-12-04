@@ -14,7 +14,7 @@ FundInfo {
   "quotaValue": "3.989299900000",
   "netAssetVolume": "310746105.31",
   "dailyFundraising": "689834.58",
-  "dailyWithdraw": "689834.58",
+  "dailyWithdraw": "730910.48",
   "numberOfShareholders": "23973"
 }
 ``` 

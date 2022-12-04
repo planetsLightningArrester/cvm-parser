@@ -211,8 +211,9 @@ export class CVM {
     info.quotaValue = data[4];
     info.netAssetVolume = data[5];
     info.dailyFundraising = data[6];
-    info.dailyWithdraw = data[6];
+    info.dailyWithdraw = data[7];
     info.numberOfShareholders = data[8];
+    
     return info;
   }
 
