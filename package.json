@@ -10,9 +10,21 @@
     "pack": "webpack --mode production",
     "pub": "npm publish ./dist --access=public"
   },
+  "repository": {
+    "type": "git",
+    "url": "git+https://github.com/planetsLightningArrester/cvm-parser.git"
+  },
   "keywords": [],
   "author": "Planet's Lightning Arrester",
   "license": "GNU GPLv3",
+  "bugs": {
+    "url": "https://github.com/planetsLightningArrester/cvm-parser/issues"
+  },
+  "homepage": "https://github.com/planetsLightningArrester/cvm-parser#readme",
+  "engines": {
+    "npm": ">=7.0.0",
+    "node": ">=17.0.0"
+  },
   "dependencies": {
     "adm-zip": "^0.5.9",
     "axios": "^1.2.0",
