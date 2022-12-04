@@ -3,7 +3,7 @@
   "version": "0.0.1",
   "description": "",
   "main": "cvm-parser.js",
-  "types": "notes-parser.d.ts",
+  "types": "cvm-parser.d.ts",
   "scripts": {
     "test": "jest --forceExit --runInBand --detectOpenHandles",
     "build": "tsc --declaration",
@@ -16,8 +16,7 @@
   "dependencies": {
     "adm-zip": "^0.5.9",
     "axios": "^1.2.0",
-    "jsdom": "^20.0.3",
-    "printaeu": "^0.1.9"
+    "jsdom": "^20.0.3"
   },
   "devDependencies": {
     "@babel/core": "^7.20.5",
@@ -32,6 +31,8 @@
     "babel-jest": "^29.3.1",
     "copy-webpack-plugin": "^11.0.0",
     "ts-jest": "^29.0.3",
+    "ts-loader": "^9.4.2",
+    "ts-node": "^10.9.1",
     "webpack": "^5.75.0",
     "webpack-cli": "^5.0.0",
     "webpack-node-externals": "^3.0.0"

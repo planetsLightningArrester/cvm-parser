@@ -6,13 +6,13 @@ import nodeExternals from 'webpack-node-externals';
 
 const config: webpack.Configuration = {
   target: 'node',
-  entry: './src/notes-parser.ts',
+  entry: './src/cvm-parser.ts',
   plugins: [
     new CopyPlugin({
       patterns: [
         { from: 'package.json' },
         { from: 'README.md' },
-        { from: 'out/src/notes-parser.d.ts' }
+        { from: 'out/cvm-parser.d.ts' }
       ]
     })
   ],
@@ -37,7 +37,7 @@ const config: webpack.Configuration = {
   },
   output: {
     libraryTarget: 'commonjs',
-    filename: 'notes-parser.js',
+    filename: 'cvm-parser.js',
     path: path.resolve(__dirname, 'dist'),
   },
   devtool: 'source-map',
