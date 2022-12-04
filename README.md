@@ -1,5 +1,7 @@
 # Brazilian CVM info - (Comissão de Valores Mobiliários)
 
+[![CI](https://github.com/planetsLightningArrester/cvm-parser/actions/workflows/ci.yml/badge.svg)](https://github.com/planetsLightningArrester/cvm-parser/actions/workflows/ci.yml)
+
 Crawler to get CVM info by company's CNPJ
 
 > Note: There's no official API to retrieve this data AFAIK
